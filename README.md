@@ -4,6 +4,7 @@ Chinese-Simplified localization toolchain for **アストラエアの白き永�
 
 ## Credits
 
-- [lzhhzl / about-shin](https://github.com/lzhhzl/about-shin) — format research
-- [07th-mod / enter_extractor](https://github.com/07th-mod/enter_extractor) — C++ extractor reference
-- [DCNick3 / ShinDataUtil](https://github.com/DCNick3/ShinDataUtil) — C# format utilities
+- [lzhhzl / about-shin](https://github.com/lzhhzl/about-shin)
+- [07th-mod / enter_extractor](https://github.com/07th-mod/enter_extractor)
+- [DCNick3 / shin-translation-tools](https://github.com/DCNick3/shin-translation-tools)
+- [DCNick3 / ShinDataUtil](https://github.com/DCNick3/ShinDataUtil)

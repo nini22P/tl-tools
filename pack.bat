@@ -16,6 +16,9 @@ bin\fnt4-tool.exe rebuild raw\data\matisse.fnt build\patch\matisse.fnt assets\fo
 bin\fnt4-tool.exe rebuild raw\data\seura.fnt build\patch\seura.fnt assets\font\ChillRoundFRegularCustom.otf -s 54 -q 4 --letter-spacing 2 -c build/mapping.toml || exit /b %errorlevel%
 
 bin\shin-tl.exe snr rewrite white-eternity raw\data\main.snr build\white-eternity-mapped.csv build\patch\main.snr || exit /b %errorlevel%
+
+python txa-tool.py pack -i assets\txa -o build\patch -v 1 || exit /b %errorlevel%
+
 bin\shin-tl.exe rom create --rom-version white-eternity build\patch build\repatch\PCSG00901\patch.rom || exit /b %errorlevel%
 
 pause
