@@ -1,4 +1,3 @@
-import io
 '''
 Implement the LZ77 variant used in the game.
 This variant of LZ77 precedes a block of data with an 8-bit bitmap specifying whether decompressor should read a literal byte or a reference.
@@ -16,201 +15,165 @@ https://github.com/DCNick3/shin-translation-tools/blob/master/shin-font/src/lib.
 https://gitlab.com/Neurochitin/kaleido/-/tree/saku/fnt
 '''
 
+import numpy as np
+from numba import njit
+from numba.typed import Dict
+from numba.core import types
+
 
 def decompress(input_data: bytes, seek_bits: int, backseek_nbyte: int) -> bytes:
-    input_stream = io.BytesIO(input_data)
-    output = io.BytesIO()
+    input_arr = np.frombuffer(input_data, dtype=np.uint8)
+    result = _decompress(input_arr, seek_bits, backseek_nbyte)
+    return bytes(result)
 
-    while input_stream.tell() < len(input_data):
-        map_byte = input_stream.read(1)
+
+def compress(input_bytes: bytes, offset_bits: int = 10) -> bytes:
+    input_arr = np.frombuffer(input_bytes, dtype=np.uint8)
+    result = _compress(input_arr, offset_bits)
+    return bytes(result)
+
+
+@njit
+def _decompress(input_arr, seek_bits, backseek_nbyte):
+    n = len(input_arr)
+    out = np.zeros(max(n, 256), dtype=np.uint8)
+    out_pos = 0
+    in_pos = 0
+
+    while in_pos < n:
+        map_byte = input_arr[in_pos]
+        in_pos += 1
         for i in range(8):
-            if input_stream.tell() >= len(input_data): break
-            if ((map_byte[0] >> i) & 1) == 0: # direct byte output
-                # if input_stream.tell() >= len(input_data): break  # sometimes no other bytes in the end
-                # literal value
-                output.write(input_stream.read(1))
+            if in_pos >= n:
+                break
+            if ((map_byte >> i) & 1) == 0:
+                if out_pos >= len(out):
+                    new_out = np.zeros(len(out) * 2, dtype=np.uint8)
+                    new_out[:out_pos] = out[:out_pos]
+                    out = new_out
+                out[out_pos] = input_arr[in_pos]
+                out_pos += 1
+                in_pos += 1
             else:
-                # back seek
-                backseek_spec = int.from_bytes(input_stream.read(backseek_nbyte), 'big', signed=False)  # big endian Oo
-                '''
-                FNT4 v0
-                MSB  XXXXXXXX          YYYYYYYY    LSB
-                val  backOffset        len
-                size (8-LEN_BITS)      LEN_BITS
-                
-                FNT4 v1
-                MSB  XXXXXXXX          YYYYYYYY    LSB
-                val  len               backOffset
-                size (16-OFFSET_BITS)  OFFSET_BITS
-                '''
-                if backseek_nbyte==2:  # FNT4 v1 use
+                # back reference
+                # FNT4 v1 (2-byte): [len(16-OFFSET_BITS) | offset(OFFSET_BITS)]
+                # FNT4 v0 (1-byte): [offset(8-LEN_BITS) | len(LEN_BITS)]
+                if backseek_nbyte == 2:  # FNT4 v1
+                    backseek_spec = int(input_arr[in_pos]) << 8 | int(input_arr[in_pos + 1])
+                    in_pos += 2
                     offset_bits = seek_bits
-                    back_offset_mask = (1 << offset_bits) - 1  # magic to get the last OFFSET_BITS bits
+                    back_offset_mask = (1 << offset_bits) - 1
                     back_length = (backseek_spec >> offset_bits) + 3
                     back_offset = (backseek_spec & back_offset_mask) + 1
-                elif backseek_nbyte==1:  # FNT4 v0 use
+                else:
+                    backseek_spec = input_arr[in_pos]
+                    in_pos += 1
                     len_bits = seek_bits
-                    back_len_mask = (1 << len_bits) - 1  # magic to get the last LEN_BITS bits
+                    back_len_mask = (1 << len_bits) - 1
                     back_length = (backseek_spec & back_len_mask) + 2
                     back_offset = (backseek_spec >> len_bits) + 1
+
+                while out_pos + back_length > len(out):
+                    new_out = np.zeros(len(out) * 2, dtype=np.uint8)
+                    new_out[:out_pos] = out[:out_pos]
+                    out = new_out
+
+                if back_offset >= back_length:
+                    start = out_pos - back_offset
+                    out[out_pos:out_pos + back_length] = out[start:start + back_length]
                 else:
-                    raise Exception(f"unknown backseek nbyte:{backseek_nbyte}")
+                    for j in range(back_length):
+                        out[out_pos + j] = out[out_pos + j - back_offset]
+                out_pos += back_length
 
-                for _ in range(back_length):  # push char to output one by one
-                    last = output.tell() - back_offset
-                    assert last >= 0
-                    # TODO: make this fallible?
-                    # TODO: this might be optimized by stopping the bounds checking after we have enough data to guarantee that it's in bounds
-                    output.write(bytes([output.getbuffer()[last]]))
-    return output.getvalue()
+    return out[:out_pos]
 
 
-def compress(input_bytes: bytes, offset_bits:int=10) -> bytes:
-    if not input_bytes:
-        return b''
-    # just implement FNT4-v1 format yet, FNT4-v0 future maybe
-    count_bits = (16-offset_bits)
-    max_count = (1 << count_bits) - 1 + 3  # max_count as look_ahead_buf_len
-    max_offset = (1 << offset_bits) - 1 + 1  # max_offset as search_buf_len
+@njit
+def _compress(input_arr, offset_bits):
+    n = len(input_arr)
+    if n == 0:
+        return np.zeros(0, dtype=np.uint8)
 
-    def find_offset(search_bytes: bytes, map_bytes: bytes):
-        idx = search_bytes.rfind(map_bytes)
-        if idx >= 0:
-            return len(search_bytes) - idx
-        raise Exception('err')
+    count_bits = 16 - offset_bits
+    max_count = (1 << count_bits) - 1 + 3
 
-    def all_the_same(input_list, compare):
-            for item in input_list:
-                if compare != item:
-                    return False
-            return True
-    
-    # first, map all input bytes to instruction format
-    instructions = [input_bytes[0]]
-    log_len = 1  # a length to logging how many input_bytes already encode
-    map_bytes = []  # a look ahead window to logging already mapping bytes
-    search_buf, len_offset = None, None  # encode to instruction: [len,offset]
-    i = 1
-    while i < len(input_bytes):
-        log_bytes = input_bytes[:log_len]
-        # map byte in look ahead buf
-        if map_bytes:
-            if len_offset[0]==len_offset[1] and\
-                    input_bytes[i]==map_bytes[0]:
-                # add sub-map routine, when (new byte*N) == map_bytes[:N]
-                main_map_len = len(map_bytes)
-                sub_map_len = main_map_len
-                sub_pos = i
-                while (max_count-len(map_bytes))>0:
-                    if (max_count-len(map_bytes))<main_map_len:
-                        sub_map_len = (max_count-len(map_bytes))
-                    if input_bytes[sub_pos:(sub_pos+sub_map_len)] != bytes(map_bytes[:sub_map_len]):
-                        break
-                    map_bytes.extend(map_bytes[:sub_map_len])
-                    sub_pos += sub_map_len
-                # if still has some bytes can't map the map_bytes[:main_map_len]
-                if len(map_bytes)<max_count:
-                    for j in range(len(map_bytes),0,-1):
-                        if input_bytes[sub_pos:sub_pos+j] == bytes(map_bytes[:j]):
-                            # finded part of main_map
-                            map_bytes.extend(map_bytes[:j])
-                            sub_pos += j
-                            break
-                i = sub_pos
-                len_offset[0] = len(map_bytes)
-                # at this time, only full of max_count will save
-                if len_offset[0]==max_count or i==len(input_bytes): #>len_offset[1]:
-                    if 0<len(map_bytes)<3:
-                        if len_offset[0]==2:
-                            if all_the_same(map_bytes,map_bytes[0]) and len_offset[1]==1:
-                                instructions.extend(map_bytes)
-                        else:
-                            raise Exception('usually will not run in here,please debug')
-                    else:
-                        instructions.append(len_offset)
-                    log_len += len(map_bytes)
-                    map_bytes = []
-                    search_buf, len_offset = None, None
-                    continue
-            if bytes(map_bytes+[input_bytes[i]]) not in search_buf:
-                if 0<len(map_bytes)<3:
-                    if len(map_bytes)==2 and \
-                        (not all_the_same(map_bytes,map_bytes[0]) or\
-                            bytes([map_bytes[1],input_bytes[i]]) in search_buf):
-                        # dont known why but:
-                        # 1. look ahead (m n h), if (m n) find in search_buf but (m n h) not find, 
-                        # 2. look ahead (m m h), if (m m) find in search_buf but (m m h) not find but (m h) find,
-                        # those look ahead pos should -1
-                        map_bytes = map_bytes[:1]
-                        i -= 1
-                    instructions.extend(map_bytes)
-                else:
-                    len_offset[0] = len(map_bytes)
-                    if len_offset[0]==2:
-                        raise Exception('usually will not run in here,please debug')
-                    instructions.append(len_offset)
-                log_len += len(map_bytes)
-                map_bytes = []
-                search_buf = None    
-                len_offset = None
-            else:
-                if len(map_bytes)==max_count:
-                    len_offset = [len(map_bytes),find_offset(search_buf,bytes(map_bytes))]
-                    instructions.append(len_offset)
-                    log_len += len(map_bytes)
-                    map_bytes = []
-                    search_buf = None
-                else:
-                    map_bytes.append(input_bytes[i])
-                    len_offset = [len(map_bytes),find_offset(search_buf,bytes(map_bytes))]
-                    # already look all input
-                    if (i+1)==len(input_bytes):
-                        if len_offset[0]<3:
-                            instructions.extend(map_bytes)
-                        else:
-                            instructions.append(len_offset)
-                        log_len += len(map_bytes)
-                    i += 1
+    hash_table = Dict.empty(key_type=types.int64, value_type=types.int64)
+
+    max_inst = n
+    inst_type = np.zeros(max_inst, dtype=np.int8)
+    inst_val0 = np.zeros(max_inst, dtype=np.int64)
+    inst_val1 = np.zeros(max_inst, dtype=np.int64)
+    inst_count = 0
+
+    pos = 0
+    while pos < n:
+        best_len = 1
+        best_off = 0
+
+        if pos + 2 < n:
+            key = np.int64(int(input_arr[pos]) << 16 | int(input_arr[pos + 1]) << 8 | int(input_arr[pos + 2]))
+            if key in hash_table:
+                candidate = hash_table[key]
+                if pos - candidate <= (1 << offset_bits):
+                    ml = 0
+                    max_possible = max_count if max_count < n - pos else n - pos
+                    while ml < max_possible and input_arr[candidate + ml] == input_arr[pos + ml]:
+                        ml += 1
+                    if ml >= 3:
+                        best_len = ml
+                        best_off = pos - candidate
+
+        if best_len >= 3:
+            inst_type[inst_count] = 1
+            inst_val0[inst_count] = best_len - 3
+            inst_val1[inst_count] = best_off - 1
+            inst_count += 1
+
+            for j in range(best_len):
+                if pos + j + 2 < n:
+                    key = np.int64(int(input_arr[pos + j]) << 16 | int(input_arr[pos + j + 1]) << 8 | int(input_arr[pos + j + 2]))
+                    hash_table[key] = pos + j
+            pos += best_len
         else:
-            # if no map, first find next search_buf
-            if not search_buf:
-                search_buf = log_bytes[-(max_offset):] if len(log_bytes)>1023 else log_bytes
-            if bytes([input_bytes[i]]) in search_buf and (i+1)!=len(input_bytes):
-                map_bytes.append(input_bytes[i])
-                len_offset = [1,find_offset(search_buf,bytes(map_bytes))]
-            else:
-                instructions.append(input_bytes[i])
-                log_len += 1
-                search_buf = None
-            i += 1
-    
-    # next encode all instructions to compress bytes
-    slices = []
-    for i in range(0, len(instructions), 8):
-        compress_part = instructions[i:i + 8]
-        bitmap_marker = sum((1 << i) if isinstance(e, list) else (0<<i) for i, e in enumerate(compress_part))
-        bytes_ = []
-        for e in compress_part:
-            if isinstance(e, list):
-                count, offset = e
-                # some raise for debug
-                if count > max_count:
-                    raise ValueError(f"count too high ({count} > {max_count})")
-                if count < 3:
-                    raise ValueError(f"count too low ({count} < 3)")
-                if offset > max_offset:
-                    raise ValueError(f"offset too high ({offset} > {max_offset})")
-                if offset <= 0:
-                    raise ValueError(f"offset too low ({offset} <= 0)")
-                len_b = ((count - 3) << (8-count_bits)) | ((offset-1) >> 8)
-                offset_b = (offset-1) & 0xff  # bitwise-AND with 8-bits offset_mask
-                bytes_.extend([len_b, offset_b])
-            else:
-                if e > 255 or e < 0:  # raise for debug
-                    raise ValueError(f"Byte out of range ({e})")
-                bytes_.append(e)
-        slices.extend([bitmap_marker, *bytes_])
-    
-    return bytes(slices)
+            inst_type[inst_count] = 0
+            inst_val0[inst_count] = int(input_arr[pos])
+            inst_val1[inst_count] = 0
+            inst_count += 1
 
-# result = decompress(b'\xc0HELLO 0\x05\x80\x0b',12)
+            if pos + 2 < n:
+                key = np.int64(int(input_arr[pos]) << 16 | int(input_arr[pos + 1]) << 8 | int(input_arr[pos + 2]))
+                hash_table[key] = pos
+            pos += 1
+
+    output = np.zeros(inst_count * 2 + inst_count // 8 + 1, dtype=np.uint8)
+    out_pos = 0
+
+    i = 0
+    while i < inst_count:
+        block_end = i + 8
+        if block_end > inst_count:
+            block_end = inst_count
+        block_size = block_end - i
+
+        bitmap = 0
+        bitmap_pos = out_pos
+        out_pos += 1
+
+        for j in range(block_size):
+            idx = i + j
+            if inst_type[idx] == 0:
+                output[out_pos] = inst_val0[idx]
+                out_pos += 1
+            else:
+                bitmap |= (1 << j)
+                len_b = (inst_val0[idx] << (8 - count_bits)) | ((inst_val1[idx]) >> 8)
+                offset_b = inst_val1[idx] & 0xFF
+                output[out_pos] = len_b
+                output[out_pos + 1] = offset_b
+                out_pos += 2
+
+        output[bitmap_pos] = bitmap
+        i += block_size
+
+    return output[:out_pos]
