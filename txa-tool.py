@@ -171,17 +171,17 @@ def convert_file(file_path: str, output_dir: str) -> bool:
         data = f.read()
 
     if data[:4] != b"TXA4":
-        print(f"[skip] not a TXA4 file: {os.path.basename(file_path)}")
+        print(f"[skip] not a TXA4 file: {os.path.abspath(file_path)}")
         return False
 
     version, indexed, count = detect_version(data)
 
     if version == 0:
         entry_hdr_size = 16
-        print(f"[{os.path.basename(file_path)}] TXA v0")
+        print(f"[{os.path.abspath(file_path)}] TXA v0")
     elif version in (1, 2):
         entry_hdr_size = 16 if version == 1 else 20
-        print(f"[{os.path.basename(file_path)}] TXA v{version}")
+        print(f"[{os.path.abspath(file_path)}] TXA v{version}")
     else:
         print(f"[skip] unsupported TXA version: {version}")
         return False
@@ -234,7 +234,7 @@ def convert_file(file_path: str, output_dir: str) -> bool:
 
         offset += entry_len
 
-    print(f"[done] {os.path.basename(file_path)} -> {output_dir}/")
+    print(f"{os.path.abspath(file_path)} -> {os.path.abspath(output_dir)}")
     return True
 
 
@@ -281,6 +281,7 @@ def build_txa(source_dir: str, output_path: str, version: int = 2) -> bool:
     use_dict = all(eligible_for_dict(e[3]) for e in entries)
     mode_str = "palette" if use_dict else "diff"
     print(f"TXA v{version}  mode={mode_str} ({len(entries)} textures)")
+    print(f"{os.path.abspath(source_dir)} -> {os.path.abspath(output_path)}")
 
     entry_hdr_size = 16 if version in (0, 1) else 20
 
@@ -390,7 +391,6 @@ def build_txa(source_dir: str, output_path: str, version: int = 2) -> bool:
             if padding > 0:
                 f.write(b'\x00' * padding)
 
-    print(f"[done] {output_path} ({file_size} bytes)")
     return True
 
 
@@ -427,7 +427,7 @@ def cmd_pack(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="TXA tool")
     sub = parser.add_subparsers(dest="command", required=True)
 
     unpack_parser = sub.add_parser("unpack", help="Extract PNGs from a TXA file")
@@ -438,7 +438,7 @@ def main() -> None:
     pack_parser.add_argument("-i", "--input", required=True, help="Directory with NNN_name.png, or parent of subdirectories to batch")
     pack_parser.add_argument("-o", "--output", required=True, help="Output .txa path (single) or directory (batch)")
     pack_parser.add_argument("-v", "--version", type=int, choices=[0, 1, 2], required=True,
-                             help="TXA format version: 0, 1, 2")
+                             help="TXA version: 0, 1, 2")
 
     args = parser.parse_args()
 
