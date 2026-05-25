@@ -5,26 +5,31 @@ import sys
 import shutil
 
 
-def patch_binary(input_path: str, output_path: str, csv_path: str):
+def patch_binary(binary_path: str, output_path: str | None, csv_path: str):
     if not os.path.exists(csv_path):
         print(f"Error: CSV file {csv_path} not found")
         return
 
-    if not os.path.exists(input_path):
-        print(f"Error: Input binary {input_path} not found")
+    if not os.path.exists(binary_path):
+        print(f"Error: Input binary {binary_path} not found")
         return
 
-    print(f"Copying {input_path} -> {output_path}...")
-    shutil.copyfile(input_path, output_path)
+    target_path = binary_path if output_path is None else output_path
+
+    if target_path != binary_path:
+        print(f"Copying {binary_path} -> {target_path}...")
+        shutil.copyfile(binary_path, target_path)
+    else:
+        print(f"Patching {binary_path} in-place...")
 
     print(f"Reading {csv_path}...")
     with open(csv_path, 'r', encoding='utf-8', newline='') as f:
         reader = csv.DictReader(f)
         rows = list(reader)
 
-    print(f"Patching {output_path}...")
+    print(f"Patching {target_path}...")
 
-    with open(output_path, 'r+b') as f_bin:
+    with open(target_path, 'r+b') as f_bin:
         for i, row in enumerate(rows):
             offset_str = row.get('offset', '').strip()
             length_str = row.get('length', '').strip()
@@ -70,13 +75,13 @@ def patch_binary(input_path: str, output_path: str, csv_path: str):
 def main():
     parser = argparse.ArgumentParser(description='Binary Patching Tool')
 
-    parser.add_argument('-i', '--input', required=True, help='Input binary file')
-    parser.add_argument('-o', '--output', required=True, help='Output binary file')
+    parser.add_argument('-b', '--bin', required=True, help='Input binary file')
+    parser.add_argument('-o', '--output', default=None, help='Output binary file (omit for in-place patching)')
     parser.add_argument('-c', '--csv', required=True, help='CSV file path')
 
     args = parser.parse_args()
 
-    patch_binary(args.input, args.output, args.csv)
+    patch_binary(args.bin, args.output, args.csv)
 
 
 if __name__ == '__main__':
