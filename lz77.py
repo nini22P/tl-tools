@@ -66,18 +66,18 @@ def decompress(input_data: bytes, seek_bits: int, backseek_nbyte: int) -> bytes:
 
 
 def compress(input_bytes: bytes, offset_bits:int=10) -> bytes:
+    if not input_bytes:
+        return b''
     # just implement FNT4-v1 format yet, FNT4-v0 future maybe
     count_bits = (16-offset_bits)
     max_count = (1 << count_bits) - 1 + 3  # max_count as look_ahead_buf_len
     max_offset = (1 << offset_bits) - 1 + 1  # max_offset as search_buf_len
 
     def find_offset(search_bytes: bytes, map_bytes: bytes):
-        for i in range(len(search_bytes)):
-            if search_bytes[-(i+1)]==map_bytes[0] and\
-                  search_bytes[-(i+1):].startswith(map_bytes):
-                return i+1
-        else:
-            raise Exception('err')
+        idx = search_bytes.rfind(map_bytes)
+        if idx >= 0:
+            return len(search_bytes) - idx
+        raise Exception('err')
 
     def all_the_same(input_list, compare):
             for item in input_list:

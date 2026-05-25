@@ -80,10 +80,10 @@ def scan(data: bytes, decode_enc: str, filter_enc: str):
 def export_csv(results, out_file, encoding):
     with open(out_file, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["offset", "encoding", "length", "text", "translation"])
+        writer.writerow(["offset", "length", "text", "translation"])
 
         for offset, length, text in results:
-            writer.writerow([hex(offset), encoding, length, text, ""])
+            writer.writerow([hex(offset), length, text, ""])
 
 
 def main():
