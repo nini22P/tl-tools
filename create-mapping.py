@@ -14,8 +14,8 @@ CSV_CONFIGS: list[Dict[str, Any]] = [
         'translation_cols': ['translated']
     },
     {
-        'input': 'eboot.csv',
-        'output': 'build/eboot-mapped.csv',
+        'input': 'eboot-utf-16le.csv',
+        'output': 'build/eboot-utf-16le-mapped.csv',
         'original_cols': ['text'],
         'translation_cols': ['translation']
     },

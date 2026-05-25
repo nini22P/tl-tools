@@ -5,7 +5,7 @@ import sys
 import shutil
 
 
-def patch_binary(binary_path: str, output_path: str | None, csv_path: str):
+def patch_binary(binary_path: str, output_path: str | None, csv_path: str, encoding: str):
     if not os.path.exists(csv_path):
         print(f"Error: CSV file {csv_path} not found")
         return
@@ -34,7 +34,6 @@ def patch_binary(binary_path: str, output_path: str | None, csv_path: str):
             offset_str = row.get('offset', '').strip()
             length_str = row.get('length', '').strip()
             translation = row.get('translation', '')
-            encoding = row.get('encoding', '').strip() or 'utf-8'
 
             if not offset_str:
                 continue
@@ -78,10 +77,11 @@ def main():
     parser.add_argument('-b', '--bin', required=True, help='Input binary file')
     parser.add_argument('-o', '--output', default=None, help='Output binary file (omit for in-place patching)')
     parser.add_argument('-c', '--csv', required=True, help='CSV file path')
+    parser.add_argument('-e', '--encoding', default='utf-8', help='Text encoding (utf-8, shift_jis, gbk...)')
 
     args = parser.parse_args()
 
-    patch_binary(args.bin, args.output, args.csv)
+    patch_binary(args.bin, args.output, args.csv, args.encoding)
 
 
 if __name__ == '__main__':
