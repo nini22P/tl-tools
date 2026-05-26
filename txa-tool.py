@@ -10,12 +10,12 @@ from PIL import Image
 import lz77
 import lz77_v0
 
-_PNG_RE = re.compile(r'(\d+)_(.+)\.png$')
+_INDEX_RE = re.compile(r'(\d+)\s*->\s*(\d+)\s+"(.+)"')
 
 
-def _dir_has_pngs(d: str) -> bool:
+def _dir_has_index(d: str) -> bool:
     try:
-        return any(_PNG_RE.match(fn) for fn in os.listdir(d))
+        return os.path.isfile(os.path.join(d, "index.txt"))
     except OSError:
         return False
 
@@ -188,6 +188,8 @@ def convert_file(file_path: str, output_dir: str) -> bool:
 
     os.makedirs(output_dir, exist_ok=True)
 
+    index_entries: list[tuple[int, int, str]] = []
+
     offset = 32
     for i in range(count):
         if version == 2:
@@ -229,10 +231,15 @@ def convert_file(file_path: str, output_dir: str) -> bool:
             pixel_bytes = decode_diff(dec_data, width, height, do_swap)
 
         img = Image.frombytes("RGBA", (width, height), bytes(pixel_bytes))
-        png_path = os.path.join(output_dir, f"{i:03d}_{name}.png")
+        png_path = os.path.join(output_dir, f"{name}.png")
         img.save(png_path)
 
+        index_entries.append((i, virtual_idx, name))
         offset += entry_len
+
+    with open(os.path.join(output_dir, "index.txt"), "w", encoding="utf-8") as f:
+        for pos, vidx, name in index_entries:
+            f.write(f"{pos:03d} -> {vidx:03d} \"{name}\"\n")
 
     print(f"{os.path.abspath(file_path)} -> {os.path.abspath(output_dir)}")
     return True
@@ -261,19 +268,33 @@ def process_batch(input_path: str, output_dir: Optional[str] = None) -> None:
 
 
 def build_txa(source_dir: str, output_path: str, version: int = 2) -> bool:
+    index_path = os.path.join(source_dir, "index.txt")
+    if not os.path.isfile(index_path):
+        print(f"[error] index.txt not found in {source_dir}")
+        return False
+
     entries: list[tuple[int, int, str, Image.Image]] = []
-    for fn in sorted(os.listdir(source_dir)):
-        m = _PNG_RE.match(fn)
-        if not m:
-            continue
-        idx = int(m.group(1))
-        name = m.group(2)
-        png_path = os.path.join(source_dir, fn)
-        img = Image.open(png_path).convert("RGBA")
-        entries.append((idx, idx, name, img))
+    with open(index_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            m = _INDEX_RE.match(line)
+            if not m:
+                print(f"[error] malformed index.txt line: {line}")
+                return False
+            pos = int(m.group(1))
+            vidx = int(m.group(2))
+            name = m.group(3)
+            png_path = os.path.join(source_dir, f"{name}.png")
+            if not os.path.isfile(png_path):
+                print(f"[error] PNG not found: {png_path}")
+                return False
+            img = Image.open(png_path).convert("RGBA")
+            entries.append((pos, vidx, name, img))
 
     if not entries:
-        print(f"[error] no PNG files found in directory (expected format: NNN_name.png)")
+        print(f"[error] no entries in index.txt")
         return False
 
     entries.sort(key=lambda x: x[0])
@@ -407,10 +428,10 @@ def cmd_pack(args: argparse.Namespace) -> None:
         return
     abs_input = os.path.abspath(args.input)
     if not os.path.isdir(abs_input):
-        print("[error] input must be a directory (containing NNN_name.png files)")
+        print("[error] input must be a directory (containing index.txt and PNG files)")
         return
 
-    if _dir_has_pngs(abs_input):
+    if _dir_has_index(abs_input):
         build_txa(abs_input, args.output, version=args.version)
         return
 
@@ -418,12 +439,12 @@ def cmd_pack(args: argparse.Namespace) -> None:
     found = False
     for entry in sorted(os.listdir(abs_input)):
         sub = os.path.join(abs_input, entry)
-        if os.path.isdir(sub) and _dir_has_pngs(sub):
+        if os.path.isdir(sub) and _dir_has_index(sub):
             out_path = os.path.join(args.output, f"{entry}.txa")
             build_txa(sub, out_path, version=args.version)
             found = True
     if not found:
-        print("[error] no subdirectories with PNG files found")
+        print("[error] no subdirectories with index.txt found")
 
 
 def main() -> None:
@@ -435,7 +456,7 @@ def main() -> None:
     unpack_parser.add_argument("-o", "--output", required=True, help="Output directory")
 
     pack_parser = sub.add_parser("pack", help="Pack PNGs into a TXA file(s)")
-    pack_parser.add_argument("-i", "--input", required=True, help="Directory with NNN_name.png, or parent of subdirectories to batch")
+    pack_parser.add_argument("-i", "--input", required=True, help="Directory with index.txt, or parent of subdirectories to batch")
     pack_parser.add_argument("-o", "--output", required=True, help="Output .txa path (single) or directory (batch)")
     pack_parser.add_argument("-v", "--version", type=int, choices=[0, 1, 2], required=True,
                              help="TXA version: 0, 1, 2")
