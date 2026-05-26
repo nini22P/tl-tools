@@ -7,11 +7,11 @@ if not exist raw\data\ (
 xcopy /Y /E assets\repatch\ build\repatch\ >nul || exit /b
 mkdir build\patch\ 2>nul
 
-python create-mapping.py || exit /b
+python shin-tools\mapping-tool.py mapping-config.json || exit /b
 
 bin\vita-unmake-fself.exe build\repatch\PCSG00901\eboot.bin || exit /b
-python patch-tool.py -b build\repatch\PCSG00901\eboot.bin.elf -c eboot-utf-8.csv -e utf-8 || exit /b
-python patch-tool.py -b build\repatch\PCSG00901\eboot.bin.elf -c build\eboot-utf-16le-mapped.csv -e utf-16le || exit /b
+python shin-tools\patch-tool.py -b build\repatch\PCSG00901\eboot.bin.elf -c eboot-utf-8.csv -e utf-8 || exit /b
+python shin-tools\patch-tool.py -b build\repatch\PCSG00901\eboot.bin.elf -c build\eboot-utf-16le-mapped.csv -e utf-16le || exit /b
 bin\vita-make-fself.exe build\repatch\PCSG00901\eboot.bin.elf build\repatch\PCSG00901\eboot.bin || exit /b
 del build\repatch\PCSG00901\eboot.bin.elf 2>nul || exit /b
 
@@ -21,7 +21,7 @@ bin\fnt4-tool.exe rebuild raw\data\seura.fnt build\patch\seura.fnt assets\font\C
 
 bin\shin-tl.exe snr rewrite white-eternity raw\data\main.snr build\white-eternity-mapped.csv build\patch\main.snr || exit /b
 
-python txa-tool.py pack -i assets\txa -o build\patch -v 1 || exit /b
+python shin-tools\txa-tool.py pack -i assets\txa -o build\patch -v 1 || exit /b
 
 bin\shin-tl.exe rom create --rom-version white-eternity build\patch build\repatch\PCSG00901\patch.rom || exit /b
 

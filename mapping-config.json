@@ -1,0 +1,18 @@
+{
+    "fnt_path": "raw/data/seura.fnt",
+    "mapping_output": "build/mapping.toml",
+    "csv_configs": [
+        {
+            "input": "white-eternity.csv",
+            "output": "build/white-eternity-mapped.csv",
+            "original_cols": ["s"],
+            "translation_cols": ["translated"]
+        },
+        {
+            "input": "eboot-utf-16le.csv",
+            "output": "build/eboot-utf-16le-mapped.csv",
+            "original_cols": ["text"],
+            "translation_cols": ["translation"]
+        }
+    ]
+}
