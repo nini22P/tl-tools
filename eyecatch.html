@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Eyecatch Generator</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200&display=swap" rel="stylesheet">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #79C9E0;
+            --line-color: #82CCE2;
+            --bg-color: #f4f7f9;
+            --border-color: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Noto Serif SC', -apple-system, BlinkMacSystemFont, serif;
+            background-color: var(--bg-color);
+            color: #334155;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 380px;
+            background: #ffffff;
+            border-right: 1px solid var(--border-color);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.02);
+            overflow-y: auto;
+        }
+
+        h2 {
+            font-size: 16px;
+            color: #1e293b;
+        }
+
+        h3 {
+            font-size: 11px;
+            color: #475569;
+            margin-top: 6px;
+            border-left: 3px solid var(--primary-color);
+            padding-left: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        p {
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.4;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #f1f5f9;
+        }
+
+        .control-item {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .control-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .control-label span {
+            font-family: monospace;
+            color: #0f172a;
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--primary-color);
+            cursor: pointer;
+        }
+
+        textarea {
+            height: 110px;
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            resize: none;
+            background: #f1f5f9;
+        }
+
+        textarea:focus {
+            outline: 2px solid var(--primary-color);
+            background: #fff;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: #1e293b;
+        }
+
+        .btn-primary:hover {
+            background-color: #62b3ca;
+        }
+
+        .btn-success {
+            background-color: #10b981;
+            color: white;
+            display: none;
+        }
+
+        .btn-success:hover {
+            background-color: #059669;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .grid-container {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .preview-group {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+        }
+
+        .group-header {
+            font-size: 14px;
+            font-weight: 600;
+            font-family: monospace;
+            color: #1e293b;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+        }
+
+        .preview-row {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .preview-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .preview-label {
+            font-size: 11px;
+            font-weight: bold;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .img-container {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+            background: conic-gradient(#e2e8f0 25%, #ffffff 0 50%, #e2e8f0 0 75%, #ffffff 0);
+            background-size: 16px 16px;
+            display: inline-block;
+            max-width: 100%;
+        }
+
+        .img-container img {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
+
+        .status-empty {
+            text-align: center;
+            color: #94a3b8;
+            margin: auto;
+            font-size: 15px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="sidebar">
+        <div>
+            <h2>Eyecatch 生成器</h2>
+        </div>
+
+        <textarea id="inputArea"
+            placeholder="eyecatch_181204.png&#10;eyecatch_190520.png pink&#10;eyecatch_221001.png #pink"></textarea>
+        <button class="btn-primary" id="btnPreview">生成预览</button>
+        <button class="btn-success" id="btnDownloadAll">打包下载 (ZIP)</button>
+
+        <h3>1. 像素羽化范围 (Glow Spread)</h3>
+        <div class="control-group">
+            <div class="control-item">
+                <div class="control-label">细线羽化半径 <span id="valLineSpread">65</span>px</div>
+                <input type="range" id="lineSpread" min="5" max="150" step="5" value="40">
+            </div>
+            <div class="control-item">
+                <div class="control-label">文字羽化半径（仅PSV） <span id="valTextSpread">40</span>px</div>
+                <input type="range" id="textSpread" min="2" max="100" step="2" value="20">
+            </div>
+        </div>
+
+        <h3>2. 字体布局微调 (Typography)</h3>
+        <div class="control-group">
+            <div class="control-item">
+                <div class="control-label">上方汉字间距 <span id="valFontSpacingCn">6</span>px</div>
+                <input type="range" id="fontSpacingCn" min="0" max="30" step="0.5" value="6">
+            </div>
+            <div class="control-item" style="margin-top: 4px;">
+                <div class="control-label">下方英文间距 <span id="valFontSpacingEn">1.5</span>px</div>
+                <input type="range" id="fontSpacingEn" min="0" max="30" step="0.5" value="1.5">
+            </div>
+        </div>
+
+        <h3>3. 能量衰减曲线 (Falloff)</h3>
+        <div class="control-group">
+            <div class="control-item">
+                <div class="control-label">消散功率指数 <span id="valCurvePower">4.0</span></div>
+                <input type="range" id="curvePower" min="1.0" max="8.0" step="0.2" value="3.0">
+            </div>
+            <div class="control-item">
+                <div class="control-label">中心最大不透明度 <span id="valMaxAlpha">0.35</span></div>
+                <input type="range" id="maxAlpha" min="0.10" max="1.00" step="0.05" value="0.2">
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content" id="mainContent">
+        <div class="status-empty" id="emptyStatus">等待输入文件名列表...</div>
+        <div class="grid-container" id="gridContainer"></div>
+    </div>
+
+    <script>
+        const WEEK_CN = ['日', '一', '二', '三', '四', '五', '六'];
+        const WEEK_EN = ['Sun.', 'Mon.', 'Tue.', 'Wed.', 'Thu.', 'Fri.', 'Sat.'];
+        let generatedData = [];
+
+        const sliders = ['lineSpread', 'textSpread', 'fontSpacingCn', 'fontSpacingEn', 'curvePower', 'maxAlpha'];
+        sliders.forEach(id => {
+            document.getElementById(id).addEventListener('input', (e) => {
+                document.getElementById('val' + id.charAt(0).toUpperCase() + id.slice(1)).innerText = e.target.value;
+                if (generatedData.length > 0) renderElements(false);
+            });
+        });
+
+        const THEME_MAP = {
+            cyan: {
+                text: '#79C9E0',
+                lineCenterRaw: '130,204,226',
+                glowRGB: '255, 255, 255'
+            },
+            pink: {
+                text: '#E89BC5',
+                lineCenterRaw: '235,168,204',
+                glowRGB: '244, 238, 250'
+            }
+        };
+
+        function generateEyecatchCanvasV5(year, month, day, type, themeKey) {
+            const isPC = type === 'pc';
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            canvas.width = isPC ? 1920 : 960;
+            canvas.height = isPC ? 105 : 600;
+
+            let lineY, fontCnSize, fontEnSize, activeCnY, activeEnY;
+
+            if (isPC) {
+                fontCnSize = 55;
+                fontEnSize = 24;
+                lineY = 2 + fontCnSize + 12; // 69px
+
+                activeCnY = lineY - 12 - (fontCnSize / 2);
+                activeEnY = lineY + 6 + (fontEnSize / 2);
+            } else {
+                lineY = 301;
+                fontCnSize = 36;
+                fontEnSize = 18;
+                const cnGap = 6;
+                const enGap = 5;
+                activeCnY = lineY - (fontCnSize / 2 + cnGap);
+                activeEnY = lineY + (fontEnSize / 2 + enGap);
+            }
+
+            const date = new Date(year, month - 1, day);
+            const dayOfWeek = date.getDay();
+
+            const textCn = `${month}月${day}日(${WEEK_CN[dayOfWeek]})`;
+            const textEn = `${date.toLocaleString('en-US', { month: 'long' })} ${day} (${WEEK_EN[dayOfWeek]})`;
+
+            const lineSpread = parseInt(document.getElementById('lineSpread').value);
+            const textSpread = parseInt(document.getElementById('textSpread').value);
+
+            const fontSpacingCn = parseFloat(document.getElementById('fontSpacingCn').value);
+            const fontSpacingEn = parseFloat(document.getElementById('fontSpacingEn').value);
+
+            const curvePower = parseFloat(document.getElementById('curvePower').value);
+            const maxAlpha = parseFloat(document.getElementById('maxAlpha').value);
+
+            const theme = THEME_MAP[themeKey] || THEME_MAP.cyan;
+
+            const drawAtomicText = (text, centerX, y, size, fontSpacing, currentTextGlowWidth = 0) => {
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.font = `200 ${size}px "Noto Serif SC", serif`;
+                ctx.letterSpacing = '0px';
+
+                let totalWidth = 0;
+                const widths = [];
+                for (let i = 0; i < text.length; i++) {
+                    const w = ctx.measureText(text[i]).width;
+                    widths.push(w);
+                    totalWidth += w;
+                    if (i < text.length - 1) totalWidth += fontSpacing;
+                }
+
+                let startX = centerX - totalWidth / 2;
+
+                for (let i = 0; i < text.length; i++) {
+                    const char = text[i];
+                    let curY = y;
+
+                    if (char === '(' || char === ')' || char === '（' || char === '）') {
+                        curY -= size * 0.07;
+                    }
+
+                    if (currentTextGlowWidth > 0) {
+                        ctx.strokeText(char, startX, curY);
+                    }
+                    ctx.fillText(char, startX, curY);
+
+                    startX += widths[i] + fontSpacing;
+                }
+            };
+
+            ctx.save();
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.globalCompositeOperation = 'lighter';
+
+            const steps = 24;
+            for (let i = steps; i > 0; i--) {
+                const progress = i / steps;
+                const alpha = Math.pow(1 - progress, curvePower) * maxAlpha;
+
+                const currentLineWidth = 1 + (progress * lineSpread);
+                const currentTextGlowWidth = (progress * textSpread);
+
+                ctx.strokeStyle = `rgba(${theme.glowRGB}, ${alpha})`;
+                ctx.fillStyle = `rgba(${theme.glowRGB}, ${alpha})`;
+
+                ctx.lineWidth = currentLineWidth;
+                ctx.beginPath(); ctx.moveTo(0, lineY); ctx.lineTo(canvas.width, lineY); ctx.stroke();
+
+                if (!isPC) {
+                    drawAtomicText(textCn, canvas.width / 2, activeCnY, fontCnSize, fontSpacingCn, currentTextGlowWidth);
+                    drawAtomicText(textEn, canvas.width / 2, activeEnY, fontEnSize, fontSpacingEn, currentTextGlowWidth);
+                }
+            }
+            ctx.restore();
+
+            const fadePct = isPC ? 0.06 : 0.12;
+            const lineGrad = ctx.createLinearGradient(0, 0, canvas.width, 0);
+
+            lineGrad.addColorStop(0, `rgba(${theme.lineCenterRaw},0)`);
+            lineGrad.addColorStop(fadePct, `rgba(${theme.lineCenterRaw},1)`);
+            lineGrad.addColorStop(1 - fadePct, `rgba(${theme.lineCenterRaw},1)`);
+            lineGrad.addColorStop(1, `rgba(${theme.lineCenterRaw},0)`);
+
+            ctx.save();
+            ctx.strokeStyle = lineGrad; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(0, lineY); ctx.lineTo(canvas.width, lineY); ctx.stroke();
+            ctx.restore();
+
+            ctx.save();
+            ctx.fillStyle = theme.text;
+            drawAtomicText(textCn, canvas.width / 2, activeCnY, fontCnSize, fontSpacingCn, 0);
+            drawAtomicText(textEn, canvas.width / 2, activeEnY, fontEnSize, fontSpacingEn, 0);
+            ctx.restore();
+
+            return canvas;
+        }
+
+        function renderElements(isNewList) {
+            const text = document.getElementById('inputArea').value;
+            const lines = text.split('\n');
+            const gridContainer = document.getElementById('gridContainer');
+            const emptyStatus = document.getElementById('emptyStatus');
+            const btnDownloadAll = document.getElementById('btnDownloadAll');
+
+            if (isNewList) {
+                gridContainer.innerHTML = '';
+                generatedData = [];
+            }
+
+            const regex = /eyecatch_(\d{2})(\d{2})(\d{2})/i;
+            let validCount = 0;
+            let activeTempData = [];
+
+            lines.forEach((line, index) => {
+                const trimmed = line.trim();
+                if (!trimmed) return;
+
+                const match = trimmed.match(regex);
+                if (match) {
+                    validCount++;
+                    const year = 2000 + parseInt(match[1]);
+                    const month = parseInt(match[2]);
+                    const day = parseInt(match[3]);
+
+                    const isPink = /pink|粉|#pink/i.test(trimmed);
+                    const themeKey = isPink ? 'pink' : 'cyan';
+
+                    const canvasPC = generateEyecatchCanvasV5(year, month, day, 'pc', themeKey);
+                    const canvasPSV = generateEyecatchCanvasV5(year, month, day, 'psv', themeKey);
+
+                    const outputName = `eyecatch_${match[1]}${match[2]}${match[3]}.png`;
+                    const dataUrlPC = canvasPC.toDataURL('image/png');
+                    const dataUrlPSV = canvasPSV.toDataURL('image/png');
+
+                    if (isNewList) {
+                        const themeTag = isPink
+                            ? '<span style="color:#E89BC5; background:#FCE7F3; padding:2px 8px; border-radius:4px; font-size:11px; margin-left:8px;">粉色</span>'
+                            : '<span style="color:#79C9E0; background:#E0F2FE; padding:2px 8px; border-radius:4px; font-size:11px; margin-left:8px;">青色</span>';
+
+                        const borderColor = isPink ? '#FCE7F3' : '#F1f5f9';
+
+                        const group = document.createElement('div');
+                        group.className = 'preview-group';
+                        group.id = `group_idx_${index}`;
+                        group.innerHTML = `
+                            <div class="group-header" style="border-bottom: 2px solid ${borderColor}">文件名: ${outputName} ${themeTag}</div>
+                            <div class="preview-row">
+                                <div class="preview-item">
+                                    <span class="preview-label">PC (1920x105)</span>
+                                    <div class="img-container" style="width:100%">
+                                        <img class="img-pc" src="${dataUrlPC}" alt="PC Preview">
+                                    </div>
+                                </div>
+                                <div class="preview-item">
+                                    <span class="preview-label">PSV (960x600)</span>
+                                    <div class="img-container" style="max-width: 480px;">
+                                        <img class="img-psv" src="${dataUrlPSV}" alt="PSV Preview">
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        gridContainer.appendChild(group);
+                    } else {
+                        const existingGroup = document.getElementById(`group_idx_${index}`);
+                        if (existingGroup) {
+                            existingGroup.querySelector('.img-pc').src = dataUrlPC;
+                            existingGroup.querySelector('.img-psv').src = dataUrlPSV;
+                        }
+                    }
+                    activeTempData.push({ name: outputName, pcData: dataUrlPC, psvData: dataUrlPSV });
+                }
+            });
+
+            if (isNewList) generatedData = activeTempData;
+
+            if (validCount > 0) {
+                emptyStatus.style.display = 'none';
+                btnDownloadAll.style.display = 'block';
+            } else if (isNewList) {
+                emptyStatus.style.display = 'block';
+                emptyStatus.innerText = '格式不符。样例：eyecatch_181204 pink';
+                btnDownloadAll.style.display = 'none';
+            }
+        }
+
+        document.getElementById('btnPreview').addEventListener('click', () => renderElements(true));
+
+        document.getElementById('btnDownloadAll').addEventListener('click', () => {
+            if (generatedData.length === 0) return;
+            const zip = new JSZip();
+            const pcFolder = zip.folder("pc");
+            const psvFolder = zip.folder("psv");
+
+            generatedData.forEach(item => {
+                pcFolder.file(item.name, item.pcData.split(',')[1], { base64: true });
+                psvFolder.file(item.name, item.psvData.split(',')[1], { base64: true });
+            });
+
+            zip.generateAsync({ type: 'blob' }).then((content) => {
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = `eyecatch_output.zip`;
+                link.click();
+            });
+        });
+    </script>
+</body>
+
+</html>
