@@ -1,5 +1,7 @@
 #!/bin/bash
 
+pip install --user -r shin-tools/requirements.txt
+
 ROOT_DIR=$(pwd)
 
 export PATH="$ROOT_DIR:$ROOT_DIR/bin:$ROOT_DIR/assets:$PATH"
