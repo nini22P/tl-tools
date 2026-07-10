@@ -241,12 +241,12 @@
         <h3>1. 像素羽化范围 (Glow Spread)</h3>
         <div class="control-group">
             <div class="control-item">
-                <div class="control-label">细线羽化半径 <span id="valLineSpread">65</span>px</div>
-                <input type="range" id="lineSpread" min="5" max="150" step="5" value="40">
+                <div class="control-label">细线羽化半径 <span id="valLineSpread">96</span>px</div>
+                <input type="range" id="lineSpread" min="5" max="150" step="1" value="96">
             </div>
             <div class="control-item">
-                <div class="control-label">文字羽化半径（仅PSV） <span id="valTextSpread">40</span>px</div>
-                <input type="range" id="textSpread" min="2" max="100" step="2" value="20">
+                <div class="control-label">文字羽化半径（仅PSV） <span id="valTextSpread">64</span>px</div>
+                <input type="range" id="textSpread" min="2" max="100" step="2" value="64">
             </div>
         </div>
 
@@ -296,7 +296,7 @@
         const THEME_MAP = {
             cyan: {
                 text: '#79C9E0',
-                lineCenterRaw: '130,204,226',
+                lineCenterRaw: '128,192,211',
                 glowRGB: '255, 255, 255'
             },
             pink: {
@@ -376,6 +376,7 @@
                     }
 
                     if (currentTextGlowWidth > 0) {
+                        ctx.lineWidth = currentTextGlowWidth;
                         ctx.strokeText(char, startX, curY);
                     }
                     ctx.fillText(char, startX, curY);
@@ -394,7 +395,7 @@
                 const progress = i / steps;
                 const alpha = Math.pow(1 - progress, curvePower) * maxAlpha;
 
-                const currentLineWidth = 1 + (progress * lineSpread);
+                const currentLineWidth = 6 + (progress * lineSpread);
                 const currentTextGlowWidth = (progress * textSpread);
 
                 ctx.strokeStyle = `rgba(${theme.glowRGB}, ${alpha})`;
@@ -420,7 +421,7 @@
 
             ctx.save();
             ctx.strokeStyle = lineGrad; ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(0, lineY); ctx.lineTo(canvas.width, lineY); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, lineY + 0.5); ctx.lineTo(canvas.width, lineY + 0.5); ctx.stroke();
             ctx.restore();
 
             ctx.save();
