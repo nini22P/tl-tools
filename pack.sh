@@ -1,19 +1,20 @@
 #!/bin/bash
 
+set -euo pipefail
+
 pip install --user -r shin-tools/requirements.txt
 
 ROOT_DIR=$(pwd)
 
 export PATH="$ROOT_DIR:$ROOT_DIR/bin:$ROOT_DIR/assets:$PATH"
 
-if [ ! -f "raw/data.rom" ]; then
-    echo -e "raw/data.rom not found!"
-    echo -e "Please put the ROM file in the raw folder and re-run the script"
-    exit 1
-fi
-
 if [ ! -d "raw/data" ]; then
-    bin/shin-tl rom extract raw/data.rom raw/data
+    if [ ! -f "raw/data.rom" ]; then
+        echo -e "raw/data.rom not found!"
+        echo -e "Please put the ROM file in the raw folder and re-run the script"
+        exit 1
+    fi
+    shin-tl rom extract raw/data.rom raw/data
 fi
 
 mkdir -p build/repatch
@@ -39,6 +40,8 @@ shin-tl snr rewrite white-eternity raw/data/main.snr build/white-eternity-mapped
 rm -rf build/patch/picture
 python shin-tools/txa_tool.py pack -i assets/txa -o build/patch -v 1
 python shin-tools/pic_tool.py pack -i assets/pic -o build/patch/picture -v 1
+
+find build/patch build/repatch -name "desktop.ini" -delete
 
 shin-tl rom create --rom-version white-eternity build/patch build/repatch/PCSG00901/patch.rom
 
