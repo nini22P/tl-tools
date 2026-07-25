@@ -17,10 +17,11 @@ if [ ! -d "raw/data" ]; then
     shin-tl rom extract raw/data.rom raw/data
 fi
 
-mkdir -p build/repatch
-cp -r assets/repatch/* build/repatch/
+rm -rf build/repatch build/patch
+mkdir -p build/repatch build/patch
 
-mkdir -p build/patch
+cp -r assets/repatch/* build/repatch/
+cp -r assets/movie build/patch/
 
 python shin-tools/mapping_tool.py mapping-config.json
 
@@ -37,7 +38,6 @@ fnt4-tool rebuild raw/data/seura.fnt build/patch/seura.fnt assets/font/ChillRoun
 
 shin-tl snr rewrite white-eternity raw/data/main.snr build/white-eternity-mapped.csv build/patch/main.snr
 
-rm -rf build/patch/picture
 python shin-tools/txa_tool.py pack -i assets/txa -o build/patch -v 1
 python shin-tools/pic_tool.py pack -i assets/pic -o build/patch/picture -v 1
 
